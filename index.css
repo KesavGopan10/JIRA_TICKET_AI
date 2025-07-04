@@ -1,0 +1,204 @@
+/* Reset and base styles */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* Custom CSS Variables for Neon Dark Theme */
+:root {
+  --primary: #00FFFF;
+  --secondary: #00FF9D;
+  --text: #FFFFFF;
+  --background: #0A0A0A;
+  --surface: rgba(18, 18, 18, 0.8);
+  --border: rgba(255, 255, 255, 0.1);
+  --error: #FF3E5F;
+  --success: #00C896;
+  --neon-blue: #00FFFF;
+  --neon-green: #00FF9D;
+  --neon-pink: #FF00FF;
+}
+
+/* Base styles */
+body {
+  background-color: var(--background);
+  color: var(--text);
+  min-height: 100vh;
+  font-family: 'Inter', sans-serif; /* A modern, clean font */
+}
+
+/* Custom utility classes */
+.neon-text-blue {
+  color: transparent;
+  background-clip: text;
+  background-image: linear-gradient(to right, var(--neon-blue), var(--neon-green));
+}
+
+.neon-glow-blue {
+  box-shadow: 0 0 10px var(--neon-blue);
+}
+
+.neon-card {
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+  border-radius: 1rem;
+}
+
+.neon-button-blue {
+  background: linear-gradient(to right, var(--neon-blue), var(--neon-green));
+  color: black;
+  font-weight: 600;
+  transition: all 0.3s ease;
+}
+
+.neon-button-blue:hover {
+  box-shadow: 0 0 15px var(--neon-blue);
+}
+
+/* Custom utility classes */
+.bg-primary {
+  background-color: var(--primary-bg);
+}
+
+.bg-secondary {
+  background-color: var(--secondary-bg);
+}
+
+.text-primary {
+  color: var(--text-primary);
+}
+
+.text-secondary {
+  color: var(--text-secondary);
+}
+
+.text-neon-cyan {
+  color: var(--neon-cyan);
+}
+
+.text-neon-magenta {
+  color: var(--neon-magenta);
+}
+
+.text-neon-lime {
+  color: var(--neon-lime);
+}
+
+.bg-neon-cyan {
+  background-color: var(--neon-cyan);
+}
+
+.bg-neon-magenta {
+  background-color: var(--neon-magenta);
+}
+
+.bg-neon-lime {
+  background-color: var(--neon-lime);
+}
+
+.border-neon-cyan {
+  border-color: var(--neon-cyan);
+}
+
+.border-neon-magenta {
+  border-color: var(--neon-magenta);
+}
+
+.border-neon-lime {
+  border-color: var(--neon-lime);
+}
+
+/* Neon glow effects */
+.neon-glow-cyan {
+  box-shadow: 0 0 5px var(--neon-cyan), 0 0 15px var(--neon-cyan), 0 0 25px var(--neon-cyan);
+}
+
+.neon-glow-magenta {
+  box-shadow: 0 0 5px var(--neon-magenta), 0 0 15px var(--neon-magenta), 0 0 25px var(--neon-magenta);
+}
+
+.neon-glow-lime {
+  box-shadow: 0 0 5px var(--neon-lime), 0 0 15px var(--neon-lime), 0 0 25px var(--neon-lime);
+}
+
+/* Button styles */
+.btn {
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  border: 1px solid transparent;
+}
+
+.btn-neon-cyan {
+  background-color: transparent;
+  border-color: var(--neon-cyan);
+  color: var(--neon-cyan);
+}
+
+.btn-neon-cyan:hover {
+  background-color: var(--neon-cyan);
+  color: var(--primary-bg);
+  box-shadow: 0 0 20px var(--neon-cyan);
+}
+
+.btn-neon-magenta {
+  background-color: transparent;
+  border-color: var(--neon-magenta);
+  color: var(--neon-magenta);
+}
+
+.btn-neon-magenta:hover {
+  background-color: var(--neon-magenta);
+  color: var(--primary-bg);
+  box-shadow: 0 0 20px var(--neon-magenta);
+}
+
+.btn-neon-lime {
+  background-color: transparent;
+  border-color: var(--neon-lime);
+  color: var(--neon-lime);
+}
+
+.btn-neon-lime:hover {
+  background-color: var(--neon-lime);
+  color: var(--primary-bg);
+  box-shadow: 0 0 20px var(--neon-lime);
+}
+
+/* Input focus effects */
+.input-neon {
+  background-color: var(--secondary-bg);
+  border: 1px solid var(--accent);
+  border-radius: 0.375rem;
+  padding: 0.5rem 1rem;
+  color: var(--text-primary);
+  transition: all 0.3s ease;
+}
+
+.input-neon:focus {
+  outline: none;
+  border-color: var(--neon-cyan);
+  box-shadow: 0 0 10px rgba(57, 197, 226, 0.5);
+}
+
+/* Card styles */
+.card-dark {
+  background-color: var(--secondary-bg);
+  border: 1px solid var(--accent);
+  border-radius: 0.75rem;
+  overflow: hidden;
+}
+
+.card-glow {
+  border: 1px solid var(--neon-cyan);
+  box-shadow: 0 0 15px rgba(57, 197, 226, 0.2);
+  transition: all 0.3s ease;
+}
+
+.card-glow:hover {
+    box-shadow: 0 0 25px rgba(57, 197, 226, 0.4);
+}
