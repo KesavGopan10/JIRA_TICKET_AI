@@ -1,0 +1,82 @@
+import React, { useRef, useEffect } from 'react';
+import { TicketType } from '../types';
+import { BugIcon } from './icons/BugIcon';
+import { StoryIcon } from './icons/StoryIcon';
+import { TaskIcon } from './icons/TaskIcon';
+import { EpicIcon } from './icons/EpicIcon';
+
+interface TicketTypeSelectorProps {
+  selectedType: TicketType;
+  onChange: (type: TicketType) => void;
+  disabled?: boolean;
+}
+
+const TicketTypeSelector: React.FC<TicketTypeSelectorProps> = ({ selectedType, onChange, disabled = false }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const pillRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (containerRef.current && pillRef.current) {
+      const container = containerRef.current;
+      const pill = pillRef.current;
+      const button = container.querySelector(`button[data-type="${selectedType}"]`);
+      
+      if (button) {
+        const buttonRect = button.getBoundingClientRect();
+        const containerRect = container.getBoundingClientRect();
+        const left = buttonRect.left - containerRect.left;
+        const width = buttonRect.width;
+        
+        pill.style.transform = `translateX(${left}px)`;
+        pill.style.width = `${width}px`;
+      }
+    }
+  }, [selectedType]);
+
+  const getIcon = (type: TicketType) => {
+    switch (type.toLowerCase()) {
+      case 'bug':
+        return <BugIcon />;
+      case 'story':
+        return <StoryIcon />;
+      case 'task':
+        return <TaskIcon />;
+      case 'epic':
+        return <EpicIcon />;
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <div className="relative w-full">
+      <div ref={containerRef} className="flex gap-2 overflow-hidden bg-gray-50 rounded-xl p-1">
+        {Object.values(TicketType).map((type) => (
+          <button
+            key={type}
+            data-type={type}
+            onClick={() => onChange(type)}
+            disabled={disabled}
+            className={`w-full px-4 py-2.5 rounded-lg transition-all duration-200 flex items-center justify-center gap-2 ${
+              selectedType === type
+                ? 'bg-white text-gray-900 shadow-sm border border-gray-200'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            {getIcon(type)}
+            <span className="font-medium">{type}</span>
+          </button>
+        ))}
+      </div>
+      <div
+        ref={pillRef}
+        className="absolute bottom-0 left-0 h-0.5 bg-gradient-to-r from-blue-600 to-cyan-500 transition-all duration-200"
+      />
+    </div>
+  );
+};
+
+export default TicketTypeSelector;
+};
+
+export default TicketTypeSelector;
