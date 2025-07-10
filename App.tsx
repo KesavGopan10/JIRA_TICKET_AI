@@ -23,6 +23,7 @@ import AnimatedBackground from './components/AnimatedBackground';
 import SettingsIcon from './components/icons/SettingsIcon';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
+import { Analytics } from '@vercel/analytics/react';
 
 const getStoredApiKey = () => localStorage.getItem('geminiApiKey') || '';
 
@@ -34,30 +35,33 @@ const App: React.FC = () => {
   const [streamingOutput, setStreamingOutput] = useState('');
   const [imageBase64, setImageBase64] = useState<string | null>(null);
   const [imageMimeType, setImageMimeType] = useState<string | null>(null);
-
   const [isLoading, setIsLoading] = useState(false);
   const [isRefining, setIsRefining] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [errorType, setErrorType] = useState<'api' | 'invalid' | 'default'>('default');
 
-  const [history, setHistory] = useState<HistoryItem[]>([]);
+  // Load history from localStorage on initial render
+  const [history, setHistory] = useState<HistoryItem[]>(() => {
+    try {
+      const saved = localStorage.getItem('jiraTicketHistory');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      console.error('Failed to load history from localStorage', e);
+      return [];
+    }
+  });
+
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [apiKey, setApiKey] = useState(getStoredApiKey());
   const apiKeyPresent = !!apiKey;
 
+  // Save history to localStorage whenever it changes
   useEffect(() => {
-    const stored = localStorage.getItem('jiraTicketHistory');
-    if (stored) {
-      try {
-        setHistory(JSON.parse(stored));
-      } catch {
-        console.warn('History parse failed.');
-      }
+    try {
+      localStorage.setItem('jiraTicketHistory', JSON.stringify(history));
+    } catch (e) {
+      console.error('Failed to save history to localStorage', e);
     }
-  }, []);
-
-  useEffect(() => {
-    localStorage.setItem('jiraTicketHistory', JSON.stringify(history));
   }, [history]);
 
   useEffect(() => {
@@ -74,16 +78,15 @@ const App: React.FC = () => {
 
   const handleGenerateTicket = useCallback(async () => {
     if (!requirement.trim()) {
-      setError('Please enter a requirement.');
+      setError('Please enter a requirement');
       setErrorType('invalid');
       return;
     }
-
     setIsLoading(true);
     clearOutputState();
     setError(null);
+    setCurrentHistoryId(null);
     let fullResponse = '';
-
     try {
       const stream = startNewTicketGenerationStream(requirement, ticketType, imageBase64, imageMimeType);
       for await (const chunk of stream) {
@@ -96,14 +99,19 @@ const App: React.FC = () => {
       const newItem: HistoryItem = {
         id: crypto.randomUUID(),
         requirement,
-        ticketType,
         ticket,
+        ticketType,
         timestamp: Date.now(),
         imageBase64,
         imageMimeType
       };
+
+      setHistory(prev => {
+        const updatedHistory = [newItem, ...prev.filter(h => h.id !== newItem.id)].sort((a, b) => b.timestamp - a.timestamp);
+        return updatedHistory.slice(0, 50);
+      });
+
       setCurrentHistoryId(newItem.id);
-      setHistory(prev => [newItem, ...prev.filter(h => h.id !== newItem.id)].sort((a, b) => b.timestamp - a.timestamp));
     } catch (err) {
       setError(getErrorMessage(err));
       setErrorType('api');
@@ -113,38 +121,45 @@ const App: React.FC = () => {
   }, [requirement, ticketType, imageBase64, imageMimeType]);
 
   const handleRefineTicket = useCallback(async (instruction: string) => {
+    if (!instruction.trim()) return;
     setIsRefining(true);
     setError(null);
     setStreamingOutput('');
     let fullResponse = '';
-
     try {
       const stream = refineGeneratedTicketStream(instruction);
       for await (const chunk of stream) {
         fullResponse += chunk;
         setStreamingOutput(fullResponse);
       }
-
       const refinedTicket = parseGeneratedTicket(fullResponse);
       setGeneratedTicket(refinedTicket);
       toast.success('Ticket refined!');
 
       if (currentHistoryId) {
-        setHistory(prev => prev.map(item =>
-          item.id === currentHistoryId ? { ...item, ticket: refinedTicket, timestamp: Date.now() } : item
-        ));
+        setHistory(prev => {
+          const updated = prev.map(item =>
+            item.id === currentHistoryId
+              ? { ...item, ticket: refinedTicket, timestamp: Date.now() }
+              : item
+          );
+          return updated.sort((a, b) => b.timestamp - a.timestamp);
+        });
       } else {
         const newItem: HistoryItem = {
           id: crypto.randomUUID(),
-          requirement: 'Refined ticket',
-          ticketType,
+          requirement,
           ticket: refinedTicket,
+          ticketType,
           timestamp: Date.now(),
           imageBase64,
           imageMimeType
         };
         setCurrentHistoryId(newItem.id);
-        setHistory(prev => [newItem, ...prev]);
+        setHistory(prev => {
+          const updated = [newItem, ...prev];
+          return updated.slice(0, 50);
+        });
       }
     } catch (err) {
       setError(getErrorMessage(err));
@@ -156,14 +171,16 @@ const App: React.FC = () => {
   }, [currentHistoryId, ticketType, imageBase64, imageMimeType]);
 
   const handleLoadFromHistory = useCallback((item: HistoryItem) => {
-    setRequirement(item.requirement);
-    setTicketType(item.ticketType);
-    setGeneratedTicket(item.ticket);
+    // Load the ticket from history without changing the current ticket type
     setCurrentHistoryId(item.id);
     setImageBase64(item.imageBase64 ?? null);
     setImageMimeType(item.imageMimeType ?? null);
     setError(null);
     setStreamingOutput('');
+    
+    // Set the generated ticket
+    setGeneratedTicket(item.ticket);
+    // Load chat history after the UI has updated
     loadChatFromHistory(item);
   }, []);
 
@@ -182,8 +199,10 @@ const App: React.FC = () => {
     if (generatedTicket) clearOutputState();
   }, [generatedTicket]);
 
-  const handleClearForm = useCallback(() => {
-    setRequirement('');
+  const handleClearForm = useCallback((clearRequirement = true) => {
+    if (clearRequirement) {
+      setRequirement('');
+    }
     setGeneratedTicket(null);
     setError(null);
     setCurrentHistoryId(null);
@@ -192,7 +211,13 @@ const App: React.FC = () => {
     setImageMimeType(null);
   }, []);
 
+  const handleTicketTypeChange = useCallback((newType: TicketType) => {
+    handleClearForm(false);
+    setTicketType(newType);
+  }, [handleClearForm]);
+
   const handleCopyToast = () => toast.success('Copied to clipboard!');
+
   const isBusy = isLoading || isRefining;
   const isStreaming = isBusy && streamingOutput;
 
@@ -200,98 +225,163 @@ const App: React.FC = () => {
     <>
       <AnimatedBackground />
       <motion.div
-        className="min-h-screen bg-[#0D1117] text-gray-200"
+        className="min-h-screen bg-gradient-to-br from-gray-900 to-[#0a0e2a] text-white"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         transition={{ duration: 0.5 }}
       >
-        <main className="container mx-auto px-4 py-10 md:px-8">
-          <header className="mb-12 text-center relative">
-            <div className="flex justify-center items-center gap-3">
-              <h1 className="text-4xl sm:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-[#58A6FF] to-[#39D3BB]">
-                Jira Ticket Generator AI
-              </h1>
-              <button
+        <main className="container mx-auto px-2 py-4 md:py-4 lg:py-4">
+          <header className="mb-8 text-center relative">
+            <div className="flex justify-center items-center gap-2">
+              <motion.div
+                initial={{ y: -20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ delay: 0.1 }}
+                className="relative"
+              >
+                <h1 className="relative text-3xl sm:text-4xl md:text-5xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-[#6a11cb] to-[#2575fc]">
+                  Jira Ticket AI
+                </h1>
+              </motion.div>
+              <motion.button
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
                 onClick={() => setSettingsOpen(true)}
-                className="absolute right-0 top-0 p-2 rounded-full hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-[#58A6FF]"
+                className="p-2 rounded-full bg-[#1a1e3a] hover:bg-[#2a2e4a] shadow-lg transition-all duration-200"
                 aria-label="Settings"
               >
-                <SettingsIcon className="w-6 h-6 text-[#58A6FF]" />
-              </button>
+                <SettingsIcon className="w-5 h-5 text-[#2575fc]" />
+              </motion.button>
             </div>
-            <p className="mt-3 text-gray-400">Describe, generate, and refine. AI drafts the ticket — you lead the sprint.</p>
-
+            <motion.p
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="mt-2 text-md text-gray-300 max-w-2xl mx-auto"
+            >
+              Describe your requirement, and let our AI craft the perfect Jira ticket. <span className="text-[#2575fc]">Efficient. Precise. Professional.</span>
+            </motion.p>
             {!apiKeyPresent && (
-              <div className="mt-6 mx-auto w-full max-w-xl p-6 border border-[#30363D] bg-[#1c1f26] rounded-xl shadow-lg">
+              <div className="mt-6 mx-auto w-full max-w-xl p-6 border border-[#2a2e4a] bg-[#1a1e3a] rounded-xl shadow-lg">
                 <p className="text-lg font-semibold text-white mb-2">Add your Gemini API Key</p>
-                <p className="text-gray-400 text-sm mb-4">
-                  You need a <a href="https://aistudio.google.com/app/apikey" target="_blank" className="underline text-[#58A6FF]">Google Gemini API key</a> to use this app.
+                <p className="text-gray-300 text-sm mb-4">
+                  You need a <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="underline text-[#2575fc]">Google Gemini API key</a> to use this app.
                 </p>
                 <button
                   onClick={() => setSettingsOpen(true)}
-                  className="bg-gradient-to-r from-[#58A6FF] to-[#39D3BB] text-white py-2 px-5 rounded-lg font-medium hover:opacity-90 transition-all"
+                  className="bg-gradient-to-r from-[#6a11cb] to-[#2575fc] text-white py-2 px-5 rounded-lg font-medium hover:opacity-90 transition-all"
                 >
-                  Open Settings →
+                  Open Settings
                 </button>
               </div>
             )}
           </header>
-
-          <div className="grid lg:grid-cols-3 gap-8">
-            <div className="lg:col-span-2 space-y-8">
-              <section className="bg-[#161b22] p-6 rounded-2xl shadow-lg border border-[#30363D]">
-                <RequirementInput value={requirement} onChange={setRequirement} onClear={handleClearForm} disabled={isBusy} />
-
-                <div className="mt-6 space-y-5">
-                  <TicketTypeSelector selectedType={ticketType} onSelectType={setTicketType} disabled={isBusy} />
-                  {ticketType === TicketType.Bug && (
-                    <ImageUploader
-                      imageBase64={imageBase64}
-                      onImageSelect={setImageBase64}
-                      onImageRemove={handleImageRemove}
-                      disabled={isBusy}
-                    />
-                  )}
-                </div>
-
-                <div className="mt-6 text-center">
-                  <button
-                    onClick={handleGenerateTicket}
-                    disabled={isBusy || !requirement.trim()}
-                    className="w-full sm:w-auto px-8 py-3 bg-gradient-to-r from-[#58A6FF] to-[#39D3BB] text-white font-semibold rounded-lg shadow-lg hover:scale-105 active:scale-95 disabled:bg-gray-600 transition-all"
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 max-w-7xl mx-auto">
+            <div className="lg:col-span-8 space-y-6">
+              <motion.section
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ delay: 0.3 }}
+                className="bg-[#1a1e3a] p-6 rounded-2xl shadow-xl border border-[#2a2e4a] hover:border-[#2575fc] transition-all duration-300"
+              >
+                <div className="space-y-6">
+                  <RequirementInput value={requirement} onChange={setRequirement} onClear={handleClearForm} disabled={isBusy} />
+                  <div className="space-y-6 pt-2">
+                    <div className="relative">
+                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                        Ticket Type
+                      </label>
+                      <TicketTypeSelector selectedType={ticketType} onSelectType={handleTicketTypeChange} disabled={isBusy} />
+                    </div>
+                    {ticketType === TicketType.Bug && (
+                      <ImageUploader
+                        imageBase64={imageBase64}
+                        onImageSelect={setImageBase64}
+                        onImageRemove={handleImageRemove}
+                        disabled={isBusy}
+                      />
+                    )}
+                  </div>
+                  <motion.div
+                    className="pt-2"
+                    whileHover={{ scale: 1.01 }}
+                    whileTap={{ scale: 0.99 }}
                   >
-                    {isLoading ? '✨ Generating...' : '✨ Generate Ticket'}
-                  </button>
+                    <button
+                      onClick={handleGenerateTicket}
+                      disabled={isBusy || !requirement.trim()}
+                      className={`w-full px-6 py-3.5 text-lg font-semibold rounded-xl shadow-lg transition-all duration-300 ease-out ${
+                        !isBusy && requirement.trim()
+                          ? 'bg-gradient-to-r from-[#6a11cb] to-[#2575fc] text-white hover:from-[#6a11cb] hover:to-[#2575fc] transform hover:-translate-y-0.5 hover:shadow-[#2575fc]/30'
+                          : 'bg-[#2a2e4a] text-gray-500 cursor-not-allowed'
+                      }`}
+                    >
+                      {isLoading ? (
+                        <span className="flex items-center justify-center gap-2">
+                          <span className="w-4 h-4 border-2 border-gray-500 border-t-white rounded-full animate-spin"></span>
+                          Generating Ticket...
+                        </span>
+                      ) : (
+                        <span className="flex items-center justify-center gap-2">
+                          <span className="text-xl">✨</span>
+                          Generate Ticket
+                        </span>
+                      )}
+                    </button>
+                  </motion.div>
                 </div>
-              </section>
-
-              {error && <ErrorCard message={error} onClose={() => setError(null)} type={errorType} />}
+              </motion.section>
+              {error && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <ErrorCard message={error} onClose={() => setError(null)} type={errorType} />
+                </motion.div>
+              )}
               {isBusy && !isStreaming && <Loader />}
-              {isStreaming && <StreamingOutput text={streamingOutput} />}
+              {isStreaming && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  <StreamingOutput text={streamingOutput} />
+                </motion.div>
+              )}
               {!isBusy && generatedTicket && (
-                <TicketOutput
-                  ticket={generatedTicket}
-                  type={ticketType}
-                  imageBase64={imageBase64}
-                  onRefine={handleRefineTicket}
-                  isRefining={isRefining}
-                  onCopyToast={handleCopyToast}
-                />
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2 }}
+                >
+                  <TicketOutput
+                    ticket={generatedTicket}
+                    type={ticketType}
+                    imageBase64={imageBase64}
+                    onRefine={handleRefineTicket}
+                    isRefining={isRefining}
+                    onCopyToast={handleCopyToast}
+                  />
+                </motion.div>
               )}
             </div>
-
-            <HistoryPanel
-              history={history}
-              onLoad={handleLoadFromHistory}
-              activeId={currentHistoryId}
-              disabled={isBusy}
-            />
+            <div className="lg:col-span-4">
+              <HistoryPanel
+                history={history}
+                onLoad={handleLoadFromHistory}
+                activeId={currentHistoryId}
+                disabled={isBusy}
+              />
+            </div>
           </div>
         </main>
-
         <SettingsModal isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} onApiKeyChange={setApiKey} />
       </motion.div>
+      <Analytics />
     </>
   );
 };
