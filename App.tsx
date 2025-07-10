@@ -171,17 +171,19 @@ const App: React.FC = () => {
   }, [currentHistoryId, ticketType, imageBase64, imageMimeType]);
 
   const handleLoadFromHistory = useCallback((item: HistoryItem) => {
-    // Load the ticket from history without changing the current ticket type
+    // Do NOT update the ticket type here
     setCurrentHistoryId(item.id);
     setImageBase64(item.imageBase64 ?? null);
     setImageMimeType(item.imageMimeType ?? null);
     setError(null);
     setStreamingOutput('');
     
-    // Set the generated ticket
-    setGeneratedTicket(item.ticket);
-    // Load chat history after the UI has updated
-    loadChatFromHistory(item);
+    // Set the generated ticket after a small delay to ensure the ticket type is updated first
+    setTimeout(() => {
+      setGeneratedTicket(item.ticket);
+      // Load chat history after the UI has updated
+      loadChatFromHistory(item);
+    }, 0);
   }, []);
 
   const getErrorMessage = (err: unknown): string => {
@@ -240,7 +242,7 @@ const App: React.FC = () => {
                 transition={{ delay: 0.1 }}
                 className="relative"
               >
-                <h1 className="relative text-3xl sm:text-4xl md:text-5xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-[#6a11cb] to-[#2575fc]">
+                 <h1 className="relative text-3xl sm:text-4xl md:text-5xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-[#6a11cb] to-[#2575fc]">
                   Jira Ticket AI
                 </h1>
               </motion.div>
@@ -360,7 +362,7 @@ const App: React.FC = () => {
                 >
                   <TicketOutput
                     ticket={generatedTicket}
-                    type={ticketType}
+                    type={currentHistoryId ? (history.find(h => h.id === currentHistoryId)?.ticketType ?? ticketType) : ticketType}
                     imageBase64={imageBase64}
                     onRefine={handleRefineTicket}
                     isRefining={isRefining}
