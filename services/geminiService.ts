@@ -50,7 +50,7 @@ export async function* startNewTicketGenerationStream(
         const prompt = getPrompt(requirement, ticketType);
         const ai = getAIInstance();
         chat = ai.chats.create({
-            model: "gemini-2.5-flash-preview-04-17",
+            model: "gemini-1.5-pro",
             config: {
                 responseMimeType: "application/json",
                 temperature: 0.2,
