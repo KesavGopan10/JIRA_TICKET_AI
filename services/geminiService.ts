@@ -50,7 +50,7 @@ export async function* startNewTicketGenerationStream(
         const prompt = getPrompt(requirement, ticketType);
         const ai = getAIInstance();
         chat = ai.chats.create({
-            model: "gemini-2.0-flash",
+            model: "gemini-2.5-pro",
             config: {
                 responseMimeType: "application/json",
                 temperature: 0.2,
@@ -131,7 +131,7 @@ export const loadChatFromHistory = (item: HistoryItem) => {
 
     const ai = getAIInstance();
     chat = ai.chats.create({
-        model: "gemini-2.5-flash-preview-04-17",
+        model: "gemini-2.5-pro",
         history: [
             { role: 'user', parts: userParts },
             { role: 'model', parts: [{ text: initialResponse }] }
